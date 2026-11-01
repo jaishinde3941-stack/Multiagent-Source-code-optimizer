@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ollama:*)",
+      "Bash(for file in \"E:\\\\SEM 4\\\\CD_Refined\\\\MicroBenchmarks\\\\Testcases\"/TC*.cpp)",
+      "Bash(do head -2 \"$file\")",
+      "Bash(done)"
+    ]
+  }
+}

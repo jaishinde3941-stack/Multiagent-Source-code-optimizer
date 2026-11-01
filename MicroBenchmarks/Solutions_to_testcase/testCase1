@@ -1,0 +1,14 @@
+#include <iostream>
+
+int main() {
+    int x = 5;
+    int y = 10;
+
+    int sum = x + y;
+    std::cout << "Sum is: " << sum << std::endl;
+
+    int result = y / x;
+    std::cout << "Result is: " << result << std::endl;
+
+    return 0;
+}

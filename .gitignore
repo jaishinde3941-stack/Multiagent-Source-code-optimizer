@@ -1,0 +1,6 @@
+# Large video files - too big for GitHub
+Technical Deliverlables and Documents/*.mp4
+
+# Environment / secrets — never commit API keys
+.env
+.env.local

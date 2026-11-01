@@ -1,0 +1,89 @@
+[
+{
+  "seq": 1,
+  "timestamp": "17:14:31.781",
+  "sender": "pipeline",
+  "receiver": "analysis_1",
+  "type": "request",
+  "priority": "high",
+  "msg_id": "e6f94e3d",
+  "corr_id": "",
+  "payload_keys": [
+    "action",
+    "file_path",
+    "source_code",
+    "line_count"
+  ],
+  "payload_preview": {
+    "action": "analyse",
+    "file_path": "E:\\SEM 4\\CD_Refined\\MicroBenchmarks\\Testcases\\TC11_buffer_overflow_loop.cpp",
+    "source_code": "<14 lines>",
+    "line_count": "14"
+  }
+},
+{
+  "seq": 2,
+  "timestamp": "17:14:31.790",
+  "sender": "analysis_1",
+  "receiver": "pipeline",
+  "type": "response",
+  "priority": "high",
+  "msg_id": "285f932d",
+  "corr_id": "e6f94e3d",
+  "payload_keys": [
+    "status",
+    "findings",
+    "confidence",
+    "conclusion",
+    "high_sev"
+  ],
+  "payload_preview": {
+    "status": "ok",
+    "findings": "2",
+    "confidence": "0.5",
+    "conclusion": "Rule-based analysis completed (LLM offline stub).",
+    "high_sev": "2"
+  }
+},
+{
+  "seq": 3,
+  "timestamp": "17:14:31.793",
+  "sender": "analysis_1",
+  "receiver": "optimization_1",
+  "type": "notification",
+  "priority": "high",
+  "msg_id": "4a60b865",
+  "corr_id": "",
+  "payload_keys": [
+    "action",
+    "findings",
+    "conclusion"
+  ],
+  "payload_preview": {
+    "action": "analysis_complete",
+    "findings": "2",
+    "conclusion": "Rule-based analysis completed (LLM offline stub)."
+  }
+},
+{
+  "seq": 4,
+  "timestamp": "17:14:31.794",
+  "sender": "pipeline",
+  "receiver": "optimization_1",
+  "type": "request",
+  "priority": "high",
+  "msg_id": "fd803b74",
+  "corr_id": "",
+  "payload_keys": [
+    "action",
+    "file_path",
+    "source_code",
+    "n_findings"
+  ],
+  "payload_preview": {
+    "action": "optimise",
+    "file_path": "E:\\SEM 4\\CD_Refined\\MicroBenchmarks\\Testcases\\TC11_buffer_overflow_loop.cpp",
+    "source_code": "<14 lines>",
+    "n_findings": "2"
+  }
+}
