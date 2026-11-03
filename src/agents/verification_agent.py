@@ -119,7 +119,9 @@ class VerificationAgent(BaseAgent):
         is_stub_fn = getattr(self.llm, "is_stub", None)
         if callable(is_stub_fn):
             try:
-                return bool(is_stub_fn(text))
+                res = is_stub_fn(text)
+                if isinstance(res, bool):
+                    return res
             except Exception:
                 pass
         return "(LLM offline stub)" in str(text) or "offline stub" in str(text)
@@ -215,7 +217,7 @@ class VerificationAgent(BaseAgent):
         )
 
         # ── Acceptance Evaluation ─────────────────────────────────────────────
-        passes_acceptance, blocking_reasons = self._evaluate_acceptance(
+        passes_acceptance, blocking_reasons, acceptance_verdict = self._evaluate_acceptance(
             diff_result=diff_result,
             z3_result=z3_result,
             llm_verdict=llm_verdict,
@@ -224,7 +226,7 @@ class VerificationAgent(BaseAgent):
             resolved_findings=resolved_findings,
         )
 
-        status = "PASS" if passes_acceptance else "FAIL"
+        status = acceptance_verdict
 
         # ── Build Feedback Report for Potential Retries ────────────────────────
         feedback_report = {
@@ -289,12 +291,14 @@ class VerificationAgent(BaseAgent):
         unresolved_findings: List[Dict[str, Any]],
         new_findings: List[Dict[str, Any]],
         resolved_findings: Optional[List[Dict[str, Any]]] = None,
-    ) -> Tuple[bool, List[str]]:
+    ) -> Tuple[bool, List[str], str]:
         """
-        Evaluate candidate against strict non-negotiable criteria (Section 8.3).
-        Distinguishes blocking defects from non-blocking warnings or unavailable tools.
+        Evaluate candidate against strict verification acceptance criteria.
+        Returns (passes_acceptance: bool, blocking_reasons: List[str], verdict: str).
+        Verdict is one of 'PASS', 'FAIL', 'INCOMPLETE'.
         """
         blocking_reasons: List[str] = []
+        is_incomplete = False
 
         # 1. Candidate compilation failure is always blocking
         if diff_result.compile_error_optimized:
@@ -302,29 +306,29 @@ class VerificationAgent(BaseAgent):
                 f"Candidate compilation failed: {diff_result.compile_error_optimized.strip()}"
             )
 
-        # 2. Real differential test failure (when original compiled and ran cleanly)
-        real_diff_failure = (
-            not diff_result.passed
-            and not diff_result.skipped
-            and not diff_result.compile_error_original
-            and diff_result.original_returncode == 0
-        )
-        # Check if difference is attributable to eliminating original undefined behavior
-        has_ub_fix = any(
-            f.get("type") in ("uninitialized_variable", "division_by_zero_risk", "use_after_free")
-            for f in (resolved_findings or [])
-        )
-        if real_diff_failure:
+        # 2. Differential test failure or skip
+        if diff_result.skipped:
+            is_incomplete = True
+            blocking_reasons.append(
+                f"Differential testing could not execute: {diff_result.error or 'compiler unavailable'}"
+            )
+        elif not diff_result.passed and not diff_result.compile_error_original:
+            real_diff_failure = True
+            # Check if difference is attributable to eliminating original undefined behavior
+            has_ub_fix = any(
+                f.get("type") in ("uninitialized_variable", "division_by_zero_risk", "use_after_free")
+                for f in (resolved_findings or [])
+            )
             if has_ub_fix and z3_result.status == "PROVEN_EQUIVALENT":
                 logger.info(
                     "Differential output difference tolerated because original program exhibited "
-                    "undefined behavior (uninitialized variable/UB) and Z3 proved equivalence."
+                    "undefined behavior (uninitialized variable/UB) and Z3 proved formal equivalence."
                 )
-            else:
-                blocking_reasons.append(
-                    f"Differential test output mismatch: original='{diff_result.original_output}', "
-                    f"candidate='{diff_result.optimized_output}'"
-                )
+                real_diff_failure = False
+
+            if real_diff_failure:
+                err_detail = diff_result.error or f"original='{diff_result.original_output}', candidate='{diff_result.optimized_output}'"
+                blocking_reasons.append(f"Differential test output/returncode mismatch: {err_detail}")
 
         # 3. Z3 solver found a concrete counterexample
         if z3_result.status == "COUNTEREXAMPLE_FOUND":
@@ -360,8 +364,12 @@ class VerificationAgent(BaseAgent):
                 f"{len(unresolved_critical)} critical/high finding(s) remain unresolved."
             )
 
-        passes = (len(blocking_reasons) == 0)
-        return passes, blocking_reasons
+        if not blocking_reasons:
+            return True, [], "PASS"
+        elif is_incomplete and not any("failed" in r.lower() or "mismatch" in r.lower() or "counterexample" in r.lower() for r in blocking_reasons):
+            return False, blocking_reasons, "INCOMPLETE"
+        else:
+            return False, blocking_reasons, "FAIL"
 
     # ── Reassess Findings ─────────────────────────────────────────────────────
 
@@ -394,35 +402,47 @@ class VerificationAgent(BaseAgent):
                     is_fixed = True
                     evidence = f"Unsafe function {fn_name}() was removed/replaced."
 
-            # Check off-by-one
+            # Check off-by-one / loop boundary
             if "off_by_one" in f_type or "buffer_overflow" in f_type:
-                # If candidate replaced <= with <
-                if "<=" not in candidate and "<=" in original:
+                orig_loops = re.findall(r'for\s*\([^;]*;\s*(\w+)\s*<=\s*(\d+|\w+)', original)
+                cand_loops = re.findall(r'for\s*\([^;]*;\s*(\w+)\s*<\s*(\d+|\w+)', candidate)
+                if orig_loops and cand_loops:
                     is_fixed = True
-                    evidence = "Loop condition changed from '<=' to '<'."
+                    evidence = f"Loop boundary corrected to strict upper bound: '{cand_loops[0][0]} < {cand_loops[0][1]}'."
 
             # Check uninitialized variable
             if "uninitialized" in f_type:
-                var_match = re.search(r"Variable '(\w+)'", f_desc)
+                var_match = re.search(r"Variable '(\w+)'", f_desc) or re.search(r"\b([a-zA-Z_]\w*)\b", f_desc)
                 if var_match:
                     varname = var_match.group(1)
-                    if re.search(rf'\b{re.escape(varname)}\s*=\s*[^;]+;', candidate):
+                    init_pat = re.compile(rf'\b(?:int|float|double|char|long|short|unsigned|bool)\s+{re.escape(varname)}\s*=\s*[^;]+;', re.MULTILINE)
+                    if init_pat.search(candidate):
                         is_fixed = True
-                        evidence = f"Variable '{varname}' is now explicitly initialized."
+                        evidence = f"Variable '{varname}' is explicitly initialized upon declaration."
 
             # Check division by zero
             if "division_by_zero" in f_type:
-                if "!= 0" in candidate or "> 0" in candidate or "< 0" in candidate:
+                div_match = re.search(r'(?:divisor|variable)\s*[\'"]?(\w+)[\'"]?', f_desc, re.IGNORECASE)
+                varname = div_match.group(1) if div_match else None
+                if varname:
+                    guard_pat = re.compile(rf'if\s*\([^)]*\b{re.escape(varname)}\s*(?:!=|==|>|<)\s*0', re.MULTILINE)
+                    if guard_pat.search(candidate):
+                        is_fixed = True
+                        evidence = f"Added conditional guard on divisor '{varname}' before division."
+                elif re.search(r'if\s*\([^)]*(?:!=|==|>|<)\s*0', candidate):
                     is_fixed = True
-                    evidence = "Added zero-check guard before division."
+                    evidence = "Added zero-check guard prior to division operation."
 
             # Check memory leak
             if "memory_leak" in f_type:
-                c_malloc = len(re.findall(r'\bmalloc\s*\(', candidate))
-                c_free = len(re.findall(r'\bfree\s*\(', candidate))
-                if c_free >= c_malloc and c_malloc > 0:
+                ptr_match = re.search(r"pointer\s*[\'\"]?(\w+)[\'\"]?", f_desc, re.IGNORECASE)
+                ptr_name = ptr_match.group(1) if ptr_match else None
+                if ptr_name and re.search(rf'\bfree\s*\(\s*{re.escape(ptr_name)}\s*\)', candidate):
                     is_fixed = True
-                    evidence = "Matching free() call added for allocated memory."
+                    evidence = f"Deallocation free({ptr_name}) explicitly added for allocated memory."
+                elif re.search(r'\bfree\s*\(', candidate) and not re.search(r'\bfree\s*\(', original):
+                    is_fixed = True
+                    evidence = "Explicit free() deallocation statement added in candidate."
 
             if is_fixed:
                 f_copy["resolution_status"] = "resolved"

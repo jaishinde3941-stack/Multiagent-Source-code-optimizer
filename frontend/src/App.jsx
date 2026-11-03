@@ -51,7 +51,7 @@ export default function App() {
   const [code,         setCode]         = useState(DEFAULT_CODE)
   const [messages,     setMessages]     = useState([])
   const [results,      setResults]      = useState({
-    analysis: null, optimization: null, verification: null, pipeline: null,
+    analysis: null, optimization: null, verification: null, security: null, pipeline: null,
   })
   const [isRunning,    setIsRunning]    = useState(false)
   const [ollamaStatus, setOllamaStatus] = useState(null)
@@ -85,6 +85,7 @@ export default function App() {
     if (type === 'analysis_result')     setResults(r => ({ ...r, analysis:     data }))
     if (type === 'optimization_result') setResults(r => ({ ...r, optimization: data }))
     if (type === 'verification_result') setResults(r => ({ ...r, verification: data }))
+    if (type === 'security_result')     setResults(r => ({ ...r, security:     data }))
     if (type === 'pipeline_result')     setResults(r => ({ ...r, pipeline:     data }))
 
     if (type === 'complete' || type === 'done') setIsRunning(false)

@@ -36,12 +36,36 @@ _TIMING_HARNESS = r"""
 #ifdef __cplusplus
 #include <chrono>
 #include <cstdio>
+
+template <typename F>
+auto _perf_call_main(F f, int argc, char* argv[], int) -> decltype(f(argc, argv)) {
+    return f(argc, argv);
+}
+
+template <typename F>
+auto _perf_call_main(F f, int argc, char* argv[], ...) -> decltype(f()) {
+    return f();
+}
+
 int main(int argc, char* argv[]) {
     auto _t0 = std::chrono::high_resolution_clock::now();
-    int  _r  = __orig_main__(argc, argv);
+    int _r = (int)_perf_call_main(__orig_main__, argc, argv, 0);
     auto _t1 = std::chrono::high_resolution_clock::now();
     long long _ns = std::chrono::duration_cast<
         std::chrono::nanoseconds>(_t1 - _t0).count();
+    fprintf(stderr, "__PERF_NS__:%lld\n", _ns);
+    return _r;
+}
+#else
+#include <stdio.h>
+#include <time.h>
+
+int main(int argc, char* argv[]) {
+    struct timespec _t0, _t1;
+    clock_gettime(CLOCK_MONOTONIC, &_t0);
+    int _r = __orig_main__();
+    clock_gettime(CLOCK_MONOTONIC, &_t1);
+    long long _ns = (_t1.tv_sec - _t0.tv_sec) * 1000000000LL + (_t1.tv_nsec - _t0.tv_nsec);
     fprintf(stderr, "__PERF_NS__:%lld\n", _ns);
     return _r;
 }
@@ -182,6 +206,13 @@ class PerfBenchmarker:
         return min(times) if times else 0.0
 
     def _check_compiler(self) -> bool:
+        import shutil
+        if shutil.which(self.compiler):
+            return True
+        for candidate in [self.compiler, "g++", "clang++", "gcc", "clang"]:
+            if shutil.which(candidate):
+                self.compiler = candidate
+                return True
         try:
             subprocess.run([self.compiler, "--version"], capture_output=True, timeout=5)
             return True

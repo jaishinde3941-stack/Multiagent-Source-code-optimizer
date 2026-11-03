@@ -4,3 +4,38 @@ Technical Deliverlables and Documents/*.mp4
 # Environment / secrets — never commit API keys
 .env
 .env.local
+.env.*
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and runtime artifacts
+logs/
+*.log
+
+# Generated optimization outputs & temp artifacts
+MicroBenchmarks/Generated_optimisation/
+*.o
+*.obj
+*.exe
+*.bin
+*.out
+temp/
+tmp/
+
+# Frontend dependencies and builds
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

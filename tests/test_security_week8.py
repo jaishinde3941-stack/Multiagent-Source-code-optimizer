@@ -397,7 +397,7 @@ class TestPipelineIntegration:
         if not os.path.isfile(tc):
             pytest.skip("TC11 not found")
         result = self.pipeline.run(tc)
-        assert result.status in ("success", "partial", "rollback", "failed")
+        assert result.status in ("success", "partial", "rollback", "failed", "no_optimization")
         # Security report must exist
         assert result.security_report.get("status") in ("PASS", "ROLLBACK")
 
@@ -406,7 +406,7 @@ class TestPipelineIntegration:
         if not os.path.isfile(tc):
             pytest.skip("TC14 not found")
         result = self.pipeline.run(tc)
-        assert result.status in ("success", "partial", "rollback", "failed")
+        assert result.status in ("success", "partial", "rollback", "failed", "no_optimization")
         assert isinstance(result.security_report.get("all_vulnerabilities"), list)
 
     def test_pipeline_tc16_use_after_free(self):
@@ -414,7 +414,7 @@ class TestPipelineIntegration:
         if not os.path.isfile(tc):
             pytest.skip("TC16 not found")
         result = self.pipeline.run(tc)
-        assert result.status in ("success", "partial", "rollback", "failed")
+        assert result.status in ("success", "partial", "rollback", "failed", "no_optimization")
         sec = result.security_report
         # TC16 contains use_after_free — security agent should detect it
         all_types = [v["type"] for v in sec.get("all_vulnerabilities", [])]
@@ -426,7 +426,7 @@ class TestPipelineIntegration:
         if not os.path.isfile(tc):
             pytest.skip("TC19 not found")
         result = self.pipeline.run(tc)
-        assert result.status in ("success", "partial", "rollback", "failed")
+        assert result.status in ("success", "partial", "rollback", "failed", "no_optimization")
         assert "overall_risk" in result.security_report
 
     def test_pipeline_summary_includes_security_section(self):
@@ -443,4 +443,4 @@ class TestPipelineIntegration:
         if not os.path.isfile(tc):
             pytest.skip("TC01 not found")
         result = self.pipeline.run(tc)
-        assert result.status in ("success", "partial", "rollback", "failed")
+        assert result.status in ("success", "partial", "rollback", "failed", "no_optimization")

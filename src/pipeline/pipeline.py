@@ -37,7 +37,12 @@ logger = logging.getLogger(__name__)
 class PipelineResult:
     """Consolidated outcome of the compiler optimization pipeline."""
     file_path: str
-    status: str                         # "success" | "partial" | "failed" | "rollback" | "verification_failed"
+    status: str                         # "success" | "rollback" | "failed" | "incomplete" | "error" | "no_optimization"
+    selected_code: str = ""             # The authoritative final source code (original if rolled back)
+    original_code: str = ""             # Original input source code
+    candidate_code: str = ""            # Candidate source generated during optimization
+    was_rolled_back: bool = False       # True if candidate was rejected & original restored
+    rollback_reason: Optional[str] = None
     analysis_report: Dict[str, Any] = field(default_factory=dict)
     optimization_report: Dict[str, Any] = field(default_factory=dict)
     verification_report: Dict[str, Any] = field(default_factory=dict)
@@ -51,6 +56,11 @@ class PipelineResult:
     score_explanation: str = ""
     error: Optional[str] = None
 
+    @property
+    def final_source_code(self) -> str:
+        """Alias returning the authoritative selected source code."""
+        return self.selected_code or self.original_code
+
     def summary(self) -> str:
         lines = [
             f"{'='*64}",
@@ -58,6 +68,12 @@ class PipelineResult:
             f" Status: {self.status.upper()} | Iterations: {self.iteration_count}/3",
             f"{'='*64}",
         ]
+
+        if self.was_rolled_back:
+            lines.append(f"\n[Rollback Notice] Candidate optimization was REJECTED and rolled back.")
+            lines.append(f"  Selected Code : Original source code restored.")
+            if self.rollback_reason:
+                lines.append(f"  Reason        : {self.rollback_reason}")
 
         # Initial Analysis
         if self.analysis_report:
@@ -122,11 +138,17 @@ class CompilerOptimizationPipeline:
 
     MAX_ITERATIONS = 3
 
-    def __init__(self, llm_client: Optional[LLMClient] = None, message_logger=None):
+    def __init__(
+        self,
+        llm_client: Optional[LLMClient] = None,
+        message_logger=None,
+        enable_security: bool = True,
+    ):
         self.llm = llm_client or LLMClient()
         self.context = ContextManager()
         self.registry = AgentRegistry()
         self._msg_logger = message_logger
+        self.enable_security = enable_security
 
         # Instantiate the 4 agents sharing self.context
         self.analysis_agent = AnalysisAgent("analysis_1", self.context, self.llm)
@@ -401,77 +423,156 @@ class CompilerOptimizationPipeline:
 
         # ── Step 4: Final Security Audit on Candidate ─────────────────────────
         logger.info("Step 4/4: Security Audit on Final Candidate")
-        req4_id = self._route(
-            sender_id="pipeline",
-            receiver_id="security_1",
-            msg_type=MessageType.REQUEST,
-            payload={
-                "action": "security_audit",
-                "file_path": file_path,
-                "candidate_len": len(current_candidate),
-                "has_candidate": current_candidate != source_code,
-            },
-        )
-
-        try:
-            sec_result = self.security_agent.process({
-                "original_code": source_code,
-                "optimized_code": current_candidate,
-                "file_path": file_path,
-                "initial_analysis_report": analysis_result,
-                "latest_verification_report": latest_ver_result,
-                "iteration_history": iteration_history,
-                "unresolved_findings": unresolved_final,
-            })
-        except Exception as exc:
-            logger.error(f"Security audit failed: {exc}", exc_info=True)
+        sec_result = {}
+        if not self.enable_security or self.security_agent is None:
+            logger.info("Security audit disabled by configuration (--no-security). Skipping Step 4.")
             sec_result = {
-                "status": "PASS",
-                "overall_risk": "unknown",
+                "status": "SKIPPED",
+                "overall_risk": "not_assessed",
                 "security_score": None,
+                "score_change": None,
+                "score_explanation": "Security audit was disabled via configuration (--no-security).",
                 "all_vulnerabilities": [],
                 "new_vulnerabilities": [],
-                "summary": f"Security audit encountered exception: {exc}",
+                "resolved_vulnerabilities": [],
+                "audit_completeness": "skipped",
+                "summary": "Security audit was skipped by user request (--no-security). No security verification was performed.",
+                "limitations": ["Security audit disabled by configuration."],
             }
+        else:
+            req4_id = self._route(
+                sender_id="pipeline",
+                receiver_id="security_1",
+                msg_type=MessageType.REQUEST,
+                payload={
+                    "action": "security_audit",
+                    "file_path": file_path,
+                    "candidate_len": len(current_candidate),
+                    "has_candidate": current_candidate != source_code,
+                },
+            )
+
+            try:
+                sec_result = self.security_agent.process({
+                    "original_code": source_code,
+                    "optimized_code": current_candidate,
+                    "file_path": file_path,
+                    "initial_analysis_report": analysis_result,
+                    "latest_verification_report": latest_ver_result,
+                    "iteration_history": iteration_history,
+                    "unresolved_findings": unresolved_final,
+                })
+            except Exception as exc:
+                logger.error(f"Security audit failed with exception: {exc}", exc_info=True)
+                sec_result = {
+                    "status": "ERROR",
+                    "overall_risk": "unknown",
+                    "security_score": None,
+                    "score_change": None,
+                    "score_explanation": f"Security audit encountered exception: {exc}",
+                    "all_vulnerabilities": [],
+                    "new_vulnerabilities": [],
+                    "resolved_vulnerabilities": [],
+                    "audit_completeness": "incomplete",
+                    "summary": f"Security audit failed due to exception: {exc}",
+                    "limitations": [f"Security audit failed with exception: {exc}"],
+                }
+
+            final_score = sec_result.get("security_score")
+            score_change = sec_result.get("score_change")
+
+            self._route(
+                sender_id="security_1",
+                receiver_id="pipeline",
+                msg_type=MessageType.RESPONSE,
+                payload={
+                    "status": sec_result.get("status"),
+                    "overall_risk": sec_result.get("overall_risk"),
+                    "security_score": final_score,
+                    "score_change": score_change,
+                },
+                corr_id=req4_id,
+            )
 
         final_score = sec_result.get("security_score")
         score_change = sec_result.get("score_change")
         score_explanation = sec_result.get("score_explanation", "")
 
-        self._route(
-            sender_id="security_1",
-            receiver_id="pipeline",
-            msg_type=MessageType.RESPONSE,
-            payload={
-                "status": sec_result.get("status"),
-                "overall_risk": sec_result.get("overall_risk"),
-                "security_score": final_score,
-                "score_change": score_change,
-            },
-            corr_id=req4_id,
-        )
-
-        # ── Determine Overall Pipeline Status ─────────────────────────────────
+        # ── Determine Overall Pipeline Status & Genuine Rollback ──────────────
         ver_status = latest_ver_result.get("status", "FAIL")
         ver_passes = latest_ver_result.get("passes_acceptance", False)
         sec_status = sec_result.get("status", "PASS")
+        new_vulns = sec_result.get("new_vulnerabilities", [])
+        new_crit_high = [v for v in new_vulns if v.get("severity") in ("critical", "high")]
 
-        if sec_status == "ROLLBACK":
+        opt_status = str(latest_opt_result.get("optimization_status") or latest_opt_result.get("status") or "").lower()
+        has_optimization = bool(
+            (current_candidate and current_candidate.strip() and current_candidate != source_code)
+            or (opt_status in ("optimization_generated", "success") and current_candidate.strip())
+        )
+
+        if not has_optimization:
+            status = "no_optimization"
+            selected_code = source_code
+            was_rolled_back = False
+            rollback_reason = None
+        elif sec_status == "ROLLBACK" or new_crit_high:
             status = "rollback"
-        elif ver_passes and sec_status == "PASS":
+            selected_code = source_code  # Genuine rollback: restore original code
+            was_rolled_back = True
+            rollback_reason = (
+                f"Security audit rejected candidate: {sec_result.get('summary', 'Critical/High vulnerabilities introduced.')}"
+            )
+        elif sec_status == "ERROR":
+            status = "error"
+            selected_code = source_code
+            was_rolled_back = True
+            rollback_reason = f"Security audit encountered error: {sec_result.get('summary')}"
+        elif ver_passes and sec_status in ("PASS", "SKIPPED"):
             status = "success"
-        elif not ver_passes and iteration >= self.MAX_ITERATIONS:
-            status = "partial"
-        elif ver_status == "FAIL":
-            status = "partial"
+            selected_code = current_candidate
+            was_rolled_back = False
+            rollback_reason = None
+        elif not ver_passes:
+            status = "failed"
+            selected_code = source_code  # Failed verification: never release unverified candidate
+            was_rolled_back = True
+            reasons = "; ".join(latest_ver_result.get("blocking_reasons", [])) or "Verification checks failed."
+            rollback_reason = f"Verification acceptance failed after {min(iteration, self.MAX_ITERATIONS)} attempt(s): {reasons}"
         else:
-            status = "success"
+            status = "incomplete"
+            selected_code = source_code
+            was_rolled_back = True
+            rollback_reason = "Mandatory pipeline correctness requirements could not be confirmed."
+
+        # Synchronize candidate and rollback state in optimization report
+        if was_rolled_back:
+            latest_opt_result["selected_code"] = source_code
+            latest_opt_result["is_rolled_back"] = True
+            latest_opt_result["rollback_reason"] = rollback_reason
+            out_file = latest_opt_result.get("output_file")
+            if out_file and os.path.exists(out_file):
+                try:
+                    with open(out_file, "w", encoding="utf-8") as f:
+                        f.write(source_code)
+                    logger.info(f"Replaced candidate in {out_file} with restored original code due to rollback.")
+                except OSError as e:
+                    logger.warning(f"Could not rewrite output file on rollback: {e}")
+        else:
+            latest_opt_result["selected_code"] = selected_code
+            latest_opt_result["is_rolled_back"] = False
+            latest_opt_result["rollback_reason"] = None
 
         logger.info(f"Pipeline finished for {file_path} with status: {status.upper()}")
 
         return PipelineResult(
             file_path=file_path,
             status=status,
+            selected_code=selected_code,
+            original_code=source_code,
+            candidate_code=current_candidate,
+            was_rolled_back=was_rolled_back,
+            rollback_reason=rollback_reason,
             analysis_report=analysis_result,
             optimization_report=latest_opt_result,
             verification_report=latest_ver_result,

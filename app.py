@@ -135,10 +135,10 @@ def _make_llm(use_llm: bool, backend: str = "ollama"):
 # Mode runners (each runs in a background thread)
 # ────────────────────────────────────────────────────────────────────────────
 
-def _run_full_pipeline(sq: StreamQueue, file_path: str, use_llm: bool) -> None:
+def _run_full_pipeline(sq: StreamQueue, file_path: str, use_llm: bool):
     from src.pipeline.pipeline import CompilerOptimizationPipeline
 
-    sq.push("status", {"phase": "pipeline_init", "message": "Initialising full 3-agent pipeline…"})
+    sq.push("status", {"phase": "pipeline_init", "message": "Initialising full 4-agent pipeline (Analysis, Optimization, Verification, Security)…"})
     msg_logger = _QueueMessageLogger(sq)
     llm        = _make_llm(use_llm)
     pipeline   = CompilerOptimizationPipeline(llm_client=llm, message_logger=msg_logger)
@@ -154,6 +154,11 @@ def _run_full_pipeline(sq: StreamQueue, file_path: str, use_llm: bool) -> None:
         "status": result.status,
         "error":  result.error,
         "summary": result.summary(),
+        "selected_code": result.selected_code,
+        "original_code": result.original_code,
+        "candidate_code": result.candidate_code,
+        "was_rolled_back": result.was_rolled_back,
+        "rollback_reason": result.rollback_reason,
         "iteration_count": result.iteration_count,
         "iteration_history": result.iteration_history,
         "initial_security_score": result.initial_security_score,
@@ -161,6 +166,7 @@ def _run_full_pipeline(sq: StreamQueue, file_path: str, use_llm: bool) -> None:
         "score_change": result.score_change,
         "score_explanation": result.score_explanation,
     })
+    return result
 
 
 def _run_analyze_only(sq: StreamQueue, source_code: str, file_path: str, use_llm: bool) -> None:
@@ -280,11 +286,16 @@ def _worker(sq: StreamQueue, source_code: str, mode: str,
 
     tmp_path: Optional[str] = None
     try:
-        ext_map = {
-            "cpp": ".cpp", "c": ".c",
-            "python": ".py", "java": ".java", "go": ".go",
-        }
-        ext = ext_map.get(language, ".cpp")
+        clean_lang = (language or "cpp").lower().strip()
+        if clean_lang not in ("c", "cpp", "c++"):
+            sq.push("error", {
+                "message": f"Unsupported language '{language}'. Only C and C++ are supported by this optimization engine."
+            })
+            sq.push("complete", {"status": "error", "error": f"Unsupported language: {language}"})
+            sq.close()
+            return
+
+        ext = ".cpp" if clean_lang in ("cpp", "c++") else ".c"
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=ext, delete=False, encoding="utf-8", prefix="ui_"
@@ -308,17 +319,25 @@ def _worker(sq: StreamQueue, source_code: str, mode: str,
                 pass
 
         if mode == "pipeline":
-            _run_full_pipeline(sq, tmp_path, use_llm)
+            res = _run_full_pipeline(sq, tmp_path, use_llm)
+            pipeline_status = res.status if res else "success"
+            sq.push("complete", {
+                "status": pipeline_status,
+                "pipeline_status": pipeline_status,
+                "was_rolled_back": getattr(res, "was_rolled_back", False) if res else False,
+            })
         elif mode == "analyze":
             _run_analyze_only(sq, source_code, tmp_path, use_llm)
+            sq.push("complete", {"status": "success", "pipeline_status": "success"})
         elif mode == "optimize":
             _run_optimize_only(sq, source_code, tmp_path, use_llm)
+            sq.push("complete", {"status": "success", "pipeline_status": "success"})
         elif mode == "verify":
             _run_verify_only(sq, source_code, tmp_path, use_llm)
+            sq.push("complete", {"status": "success", "pipeline_status": "success"})
         else:
             sq.push("error", {"message": f"Unknown mode: {mode}"})
-
-        sq.push("complete", {"status": "success"})
+            sq.push("complete", {"status": "error"})
 
     except Exception as exc:
         import traceback
@@ -368,6 +387,10 @@ def stream_endpoint():
 
     if not code:
         return jsonify({"error": "No code provided"}), 400
+
+    clean_lang = (language or "cpp").lower().strip()
+    if clean_lang not in ("c", "cpp", "c++"):
+        return jsonify({"error": f"Unsupported language '{language}'. Only C and C++ are supported."}), 400
 
     sq = StreamQueue()
     threading.Thread(

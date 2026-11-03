@@ -88,7 +88,9 @@ class AnalysisAgent(BaseAgent):
         is_stub_fn = getattr(self.llm, "is_stub", None)
         if callable(is_stub_fn):
             try:
-                return bool(is_stub_fn(text))
+                res = is_stub_fn(text)
+                if isinstance(res, bool):
+                    return res
             except Exception:
                 pass
         return "(LLM offline stub)" in str(text) or "offline stub" in str(text)
@@ -496,8 +498,28 @@ class AnalysisAgent(BaseAgent):
                 ["Malformed LLM scoring output."],
             )
 
+        raw_score = parsed["security_score"]
+        # Reject booleans (True/False are subclasses of int in Python)
+        if isinstance(raw_score, bool):
+            return (
+                None,
+                "LLM returned boolean value for security score instead of an integer.",
+                0.0,
+                "invalid_type",
+                ["Boolean score received from LLM."],
+            )
+        # Reject floating point values that are not exact integers
+        if isinstance(raw_score, float) and not raw_score.is_integer():
+            return (
+                None,
+                f"LLM returned fractional float value {raw_score} for security score.",
+                0.0,
+                "invalid_type",
+                ["Floating point score cannot be silently truncated to integer."],
+            )
+
         try:
-            score_val = int(parsed["security_score"])
+            score_val = int(raw_score)
             if not (0 <= score_val <= 100):
                 logger.warning(f"Score {score_val} outside [0, 100] – rejecting invalid score.")
                 return (
@@ -517,7 +539,13 @@ class AnalysisAgent(BaseAgent):
             )
 
         rationale = str(parsed.get("score_rationale", "Evidence-based rubric score."))
-        conf = float(parsed.get("score_confidence", 0.8))
+        raw_conf = parsed.get("score_confidence", 0.8)
+        try:
+            conf = float(raw_conf)
+            if not (0.0 <= conf <= 1.0):
+                conf = max(0.0, min(1.0, conf))
+        except (ValueError, TypeError):
+            conf = 0.8
         completeness = str(parsed.get("assessment_completeness", "full"))
         extra_limits = [str(x) for x in parsed.get("assessment_limitations", [])]
 

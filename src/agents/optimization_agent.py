@@ -94,7 +94,9 @@ class OptimizationAgent(BaseAgent):
         is_stub_fn = getattr(self.llm, "is_stub", None)
         if callable(is_stub_fn):
             try:
-                return bool(is_stub_fn(text))
+                res = is_stub_fn(text)
+                if isinstance(res, bool):
+                    return res
             except Exception:
                 pass
         return "(LLM offline stub)" in str(text) or "offline stub" in str(text)
@@ -147,10 +149,7 @@ class OptimizationAgent(BaseAgent):
             f"OptimizationAgent: running attempt {iteration}/3 for '{os.path.basename(file_path)}'"
         )
 
-        # ── 1. Apply rule-based auto-fixes ────────────────────────────────────
-        rule_code, rule_transforms = self._rule_based_fix(source_code, analysis_report)
-
-        # ── 2. Call LLM for evidence-driven transformation ────────────────────
+        # ── 1. Call LLM for evidence-driven transformation (Ollama is sole code generator) ──
         (
             llm_code,
             llm_transforms,
@@ -167,20 +166,14 @@ class OptimizationAgent(BaseAgent):
             previous_attempts=previous_attempts,
         )
 
-        # ── 3. Select candidate code ──────────────────────────────────────────
-        # If LLM generated valid new code, use it. Else if rule-based produced a fix, use that.
-        # Otherwise fallback to original code.
+        # ── 2. Select candidate code ──────────────────────────────────────────
+        # Preserve original source if LLM is unavailable, returns invalid output, or unchanged code.
+        # Never fall back to unvalidated regex mutations.
         if llm_code and llm_code.strip() and llm_code != source_code:
             final_code = llm_code
-            all_transforms = rule_transforms + llm_transforms
+            all_transforms = llm_transforms
             status = OptimizationStatus.OPTIMIZATION_GENERATED
-        elif rule_code and rule_code != source_code:
-            final_code = rule_code
-            all_transforms = rule_transforms
-            status = OptimizationStatus.OPTIMIZATION_GENERATED
-            conclusion = f"Applied {len(rule_transforms)} rule-based fix(es)."
-            confidence = 0.80
-        elif llm_code == source_code and opt_status != OptimizationStatus.FALLBACK_ORIGINAL_CODE:
+        elif llm_code == source_code:
             final_code = source_code
             all_transforms = []
             status = OptimizationStatus.NO_CHANGES_GENERATED
@@ -189,7 +182,7 @@ class OptimizationAgent(BaseAgent):
             final_code = source_code
             all_transforms = []
             status = opt_status or OptimizationStatus.FALLBACK_ORIGINAL_CODE
-            conclusion = "LLM unavailable or failed; original code preserved."
+            conclusion = "LLM unavailable or failed; original code preserved without unvalidated mutation."
 
         # ── 4. Build unified diff ─────────────────────────────────────────────
         diff = self._make_diff(source_code, final_code, file_path)

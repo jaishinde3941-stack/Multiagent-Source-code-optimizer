@@ -100,6 +100,9 @@ class ToolRunner:
                     r"C:\Program Files\LLVM\bin",
                     r"C:\Program Files (x86)\LLVM\bin",
                     os.path.expandvars(r"%LOCALAPPDATA%\Programs\LLVM\bin"),
+                    r"C:\Program Files\Cppcheck",
+                    r"C:\Program Files (x86)\Cppcheck",
+                    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cppcheck"),
                 ]
                 for cdir in candidate_dirs:
                     cand = os.path.join(cdir, f"{name}.exe" if not name.endswith(".exe") else name)
@@ -153,15 +156,38 @@ class ToolRunner:
             cmd = [exe_path, "-fsyntax-only", "-Wall", "-Wextra"]
             limitations = []
 
-            # Check for compilation database
+            # Check for compilation database (extract flags safely without passing -p to compiler)
             comp_db_used = False
             if compilation_database_dir and os.path.isfile(os.path.join(compilation_database_dir, "compile_commands.json")):
-                cmd.extend(["-p", compilation_database_dir])
-                comp_db_used = True
-            else:
-                std_flag = "-std=c++17" if is_cpp else "-std=c11"
+                try:
+                    with open(os.path.join(compilation_database_dir, "compile_commands.json"), "r", encoding="utf-8") as cdf:
+                        db_entries = json.load(cdf)
+                    target_entry = None
+                    file_base = os.path.basename(file_path)
+                    for entry in db_entries:
+                        e_file = entry.get("file", "")
+                        if e_file.endswith(file_base) or os.path.basename(e_file) == file_base:
+                            target_entry = entry
+                            break
+                    if target_entry:
+                        comp_db_used = True
+                        # Safely inherit include dirs (-I) and macro definitions (-D)
+                        args = target_entry.get("arguments") or target_entry.get("command", "").split()
+                        for a in args:
+                            if a.startswith(("-I", "-D", "-isystem")):
+                                if a not in cmd:
+                                    cmd.append(a)
+                    else:
+                        limitations.append(f"Source file '{file_path}' not found in compilation database.")
+                except Exception as db_err:
+                    limitations.append(f"Failed to parse compilation database: {db_err}")
+
+            std_flag = "-std=c++17" if is_cpp else "-std=c11"
+            if not any(a.startswith("-std=") for a in cmd):
                 cmd.append(std_flag)
-                limitations.append("No compilation database found; used standalone fallback flags (-Wall -Wextra).")
+
+            if not comp_db_used:
+                limitations.append("No matching compilation database entry found; used standalone fallback flags (-Wall -Wextra).")
 
             cmd.append(src_file)
 
@@ -498,6 +524,9 @@ class ToolRunner:
                 # Binary built: run it with test inputs
                 findings: List[Dict[str, Any]] = []
                 raw_exec_outputs = []
+                had_timeout = False
+                had_abnormal_exit = False
+                last_exit_code = 0
 
                 for inp in test_inputs:
                     try:
@@ -509,19 +538,31 @@ class ToolRunner:
                             timeout=self.timeout,
                             shell=False,
                         )
+                        last_exit_code = rproc.returncode
                         combined = (rproc.stderr or "") + "\n" + (rproc.stdout or "")
                         raw_exec_outputs.append(combined)
+
+                        if rproc.returncode != 0:
+                            had_abnormal_exit = True
 
                         # Detect sanitizer crashes/reports
                         if "AddressSanitizer" in combined or "runtime error:" in combined or "sanitizer" in combined.lower():
                             detected_findings = self._parse_sanitizer_output(combined, file_path, sname)
                             findings.extend(detected_findings)
                     except subprocess.TimeoutExpired:
-                        raw_exec_outputs.append("Execution timed out.")
+                        had_timeout = True
+                        raw_exec_outputs.append(f"Execution timed out after {self.timeout}s.")
 
                 final_raw = "\n---\n".join(raw_exec_outputs)
+                err_msg = None
                 if findings:
                     status = ToolStatus.FINDINGS
+                elif had_timeout:
+                    status = ToolStatus.INCONCLUSIVE
+                    err_msg = f"{sname} target execution timed out."
+                elif had_abnormal_exit:
+                    status = ToolStatus.FAILED
+                    err_msg = f"{sname} target process exited abnormally with code {last_exit_code}."
                 else:
                     status = ToolStatus.PASSED
 
@@ -530,7 +571,11 @@ class ToolRunner:
                     status=status,
                     findings=findings,
                     raw_output=final_raw,
-                    limitations=["Analyzed only executed paths with supplied test inputs."],
+                    error_message=err_msg,
+                    exit_code=last_exit_code,
+                    limitations=[
+                        "Analyzed only executed paths with supplied test inputs; does not prove absence of all undefined behavior.",
+                    ],
                 )
 
             except subprocess.TimeoutExpired:

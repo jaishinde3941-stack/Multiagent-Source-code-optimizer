@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle,
   FileText, Diff, ShieldCheck, MessageSquare,
   ChevronUp, ChevronDown, CheckCheck, Check, X,
-  CopyCheck,
+  CopyCheck, ShieldAlert, Lock,
 } from 'lucide-react'
 
 /* ── Severity helpers ─────────────────────────────────────────────────────── */
@@ -11,9 +11,9 @@ import {
 function SeverityBadge({ severity }) {
   const s = (severity ?? 'info').toLowerCase()
   const cls = {
-    high:   'severity-badge severity-high',
+    high: 'severity-badge severity-high',
     medium: 'severity-badge severity-medium',
-    low:    'severity-badge severity-low',
+    low: 'severity-badge severity-low',
   }[s] ?? 'severity-badge severity-info'
   return <span className={cls}>{s}</span>
 }
@@ -24,7 +24,7 @@ function AnalysisTab({ data }) {
   if (!data) return <EmptyState icon={<FileText />} text="Run analysis to see findings." />
 
   const findings = data.all_findings ?? []
-  const counts   = { high: 0, medium: 0, low: 0, info: 0 }
+  const counts = { high: 0, medium: 0, low: 0, info: 0 }
   findings.forEach(f => {
     const s = (f.severity ?? 'info').toLowerCase()
     counts[s] = (counts[s] ?? 0) + 1
@@ -137,19 +137,20 @@ function DiffLine({ line }) {
   )
 }
 
-function OptimizationTab({ data, onAcceptCode }) {
-  const [accepted, setAccepted]         = useState({})   // { index: true/false }
-  const [allApplied, setAllApplied]     = useState(false)
+function OptimizationTab({ data, onAcceptCode, pipelineData }) {
+  const [accepted, setAccepted] = useState({})   // { index: true/false }
+  const [allApplied, setAllApplied] = useState(false)
 
   if (!data) return <EmptyState icon={<Diff />} text="Run optimize to see the diff." />
 
-  const transforms   = data.transformations ?? []
-  const diff         = data.unified_diff ?? ''
-  const diffLines    = diff.split('\n').filter(Boolean)
-  const outputFile   = data.output_file ?? ''
-  const optimizedCode = data.optimized_code ?? ''
+  const isRolledBack = pipelineData?.status === 'rollback' || pipelineData?.was_rolled_back || data?.is_rolled_back
+  const transforms = data.transformations ?? []
+  const diff = data.unified_diff ?? ''
+  const diffLines = diff.split('\n').filter(Boolean)
+  const outputFile = data.output_file ?? ''
+  const optimizedCode = isRolledBack ? (pipelineData?.original_code || data.original_code || '') : (data.optimized_code ?? '')
 
-  const acceptedCount  = Object.values(accepted).filter(Boolean).length
+  const acceptedCount = Object.values(accepted).filter(Boolean).length
   const allIndividualAccepted = transforms.length > 0 && acceptedCount === transforms.length
 
   function toggleAccept(i) {
@@ -180,6 +181,26 @@ function OptimizationTab({ data, onAcceptCode }) {
 
   return (
     <div>
+      {/* Rollback alert */}
+      {isRolledBack && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.12)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          color: 'var(--accent-red)',
+          padding: '10px 14px',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 12,
+          fontWeight: 600,
+          fontSize: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <AlertTriangle size={16} />
+          <span>ROLLED BACK: Candidate optimization was rejected due to verification or security failures. Original source code is preserved.</span>
+        </div>
+      )}
+
       {/* Summary + Accept-All / Reject-All bar */}
       <div className="summary-bar">
         <div className="summary-item">
@@ -225,22 +246,23 @@ function OptimizationTab({ data, onAcceptCode }) {
             </button>
             <button
               onClick={handleAcceptAll}
+              disabled={isRolledBack}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '5px 14px', borderRadius: 'var(--radius-sm)',
                 border: 'none',
-                background: allApplied ? 'var(--accent-green)' : 'var(--primary)',
-                color: 'white',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: isRolledBack ? 'var(--bg-surface-3)' : (allApplied ? 'var(--accent-green)' : 'var(--primary)'),
+                color: isRolledBack ? 'var(--text-muted)' : 'white',
+                fontSize: 12, fontWeight: 700, cursor: isRolledBack ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit', transition: 'all 0.15s',
-                boxShadow: allApplied
+                boxShadow: (allApplied && !isRolledBack)
                   ? '0 2px 8px rgba(22,163,74,0.35)'
-                  : '0 2px 8px rgba(37,99,235,0.30)',
+                  : (!isRolledBack ? '0 2px 8px rgba(37,99,235,0.30)' : 'none'),
               }}
-              title="Accept all changes and apply optimized code to editor"
+              title={isRolledBack ? 'Cannot apply rejected code' : 'Accept all changes and apply optimized code to editor'}
             >
               <CheckCheck size={13} strokeWidth={2.5} />
-              {allApplied ? 'Applied to Editor' : 'Accept All Changes'}
+              {isRolledBack ? 'Candidate Rejected' : (allApplied ? 'Applied to Editor' : 'Accept All Changes')}
             </button>
           </div>
         )}
@@ -367,28 +389,28 @@ function VerificationTab({ data }) {
   if (!data) return <EmptyState icon={<ShieldCheck />} text="Run verify to see results." />
 
   const overallStatus = (data.status ?? 'UNKNOWN').toLowerCase()
-  const statusCls     = {
-    pass:     'status-pill status-success',
-    fail:     'status-pill status-failed',
+  const statusCls = {
+    pass: 'status-pill status-success',
+    fail: 'status-pill status-failed',
     rollback: 'status-pill status-rollback',
   }[overallStatus] ?? 'status-pill status-partial'
 
   const layers = [
     {
-      title:  'Layer 1 — Differential Testing',
-      pass:   data.diff_passed,
+      title: 'Layer 1 — Differential Testing',
+      pass: data.diff_passed,
       detail: data.diff_error ?? (data.diff_passed ? 'Both versions produce identical output.' : 'Output mismatch detected.'),
     },
     {
-      title:  'Layer 2 — Z3 SMT Equivalence',
-      pass:   data.z3_status === 'PROVEN_EQUIVALENT' ? true : data.z3_status === 'SKIPPED' ? null : false,
+      title: 'Layer 2 — Z3 SMT Equivalence',
+      pass: data.z3_status === 'PROVEN_EQUIVALENT' ? true : data.z3_status === 'SKIPPED' ? null : false,
       detail: data.z3_status === 'SKIPPED'
         ? 'Z3 solver not available (optional).'
         : data.z3_status ?? 'Not run.',
     },
     {
-      title:  'Layer 3 — Performance Benchmark',
-      pass:   (() => {
+      title: 'Layer 3 — Performance Benchmark',
+      pass: (() => {
         const s = data.perf_summary ?? ''
         if (!s || s.toLowerCase().includes('skipped')) return null
         return true
@@ -396,8 +418,8 @@ function VerificationTab({ data }) {
       detail: data.perf_summary ?? 'Not benchmarked.',
     },
     {
-      title:  'Layer 4 — LLM Semantic Verdict',
-      pass:   (() => {
+      title: 'Layer 4 — LLM Semantic Verdict',
+      pass: (() => {
         const v = (data.llm_verdict ?? '').toUpperCase()
         if (!v || v === 'UNCERTAIN' || v === 'UNKNOWN') return null
         return v === 'EQUIVALENT'
@@ -437,6 +459,170 @@ function VerificationTab({ data }) {
   )
 }
 
+/* ── Security Tab ─────────────────────────────────────────────────────────── */
+
+function SecurityTab({ data, pipelineData }) {
+  if (!data) return <EmptyState icon={<ShieldAlert />} text="Run the pipeline to see final candidate security audit." />
+
+  const score = data.security_score
+  const risk = (data.overall_risk ?? 'UNKNOWN').toUpperCase()
+  const status = (data.status ?? 'UNKNOWN').toUpperCase()
+  const isRolledBack = status === 'ROLLBACK' || pipelineData?.status === 'rollback' || pipelineData?.was_rolled_back
+  const newVulns = data.new_vulnerabilities ?? []
+  const resolvedVulns = data.resolved_vulnerabilities ?? []
+  const allVulns = data.all_vulnerabilities ?? []
+
+  const riskCls = {
+    CRITICAL: 'severity-badge severity-high',
+    HIGH: 'severity-badge severity-high',
+    MEDIUM: 'severity-badge severity-medium',
+    LOW: 'severity-badge severity-low',
+    NONE: 'ver-badge ver-badge-pass',
+  }[risk] ?? 'severity-badge severity-info'
+
+  const statusCls = isRolledBack
+    ? 'ver-badge ver-badge-fail'
+    : (status === 'PASS' ? 'ver-badge ver-badge-pass' : (status === 'SKIPPED' ? 'ver-badge ver-badge-inconclusive' : 'ver-badge ver-badge-fail'))
+
+  return (
+    <div>
+      {/* Rollback alert */}
+      {isRolledBack && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.12)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          color: 'var(--accent-red)',
+          padding: '10px 14px',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 12,
+          fontWeight: 600,
+          fontSize: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <AlertTriangle size={16} />
+          <span>ROLLED BACK: Candidate was rejected by security audit. Original source code was restored.</span>
+        </div>
+      )}
+
+      {/* Summary Bar */}
+      <div className="summary-bar">
+        <div className="summary-item">
+          <span className="summary-label">Audit Status:</span>
+          <span className={statusCls}>{status}</span>
+        </div>
+        <div className="summary-item">
+          <span className="summary-label">Risk Level:</span>
+          <span className={riskCls}>{risk}</span>
+        </div>
+        <div className="summary-item">
+          <span className="summary-label">Score:</span>
+          <span className="summary-value" style={{ fontWeight: 700 }}>
+            {score != null ? `${score}/100` : 'N/A'}
+          </span>
+        </div>
+        {data.score_change != null && (
+          <div className="summary-item">
+            <span className="summary-label">Delta:</span>
+            <span style={{
+              fontWeight: 700,
+              color: data.score_change > 0 ? 'var(--accent-green)' : (data.score_change < 0 ? 'var(--accent-red)' : 'inherit')
+            }}>
+              {data.score_change > 0 ? `+${data.score_change}` : data.score_change} pts
+            </span>
+          </div>
+        )}
+        <div className="summary-item" style={{ marginLeft: 'auto' }}>
+          <span className="summary-label">Completeness:</span>
+          <span style={{ fontSize: 12, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>
+            {data.audit_completeness ?? 'full'}
+          </span>
+        </div>
+      </div>
+
+      {/* Newly Introduced Vulnerabilities */}
+      {newVulns.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-red)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <AlertTriangle size={14} /> Newly Introduced Vulnerabilities ({newVulns.length})
+          </div>
+          <div className="findings-grid">
+            {newVulns.map((v, i) => (
+              <div key={i} className="finding-card" style={{ borderColor: 'rgba(239,68,68,0.4)' }}>
+                <SeverityBadge severity={v.severity ?? 'high'} />
+                <div className="finding-details">
+                  <div className="finding-type">{(v.type ?? 'vulnerability').replace(/_/g, ' ')}</div>
+                  <div className="finding-desc">{v.description}</div>
+                  {v.cwe_id && <div className="finding-desc" style={{ color: 'var(--accent-red)' }}>{v.cwe_id}</div>}
+                  {v.line && <div className="finding-line">Line {v.line}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Resolved Vulnerabilities */}
+      {resolvedVulns.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CheckCircle2 size={14} /> Resolved Vulnerabilities ({resolvedVulns.length})
+          </div>
+          <div className="findings-grid">
+            {resolvedVulns.map((v, i) => (
+              <div key={i} className="finding-card" style={{ borderColor: 'rgba(22,163,74,0.3)' }}>
+                <span className="severity-badge severity-low">Resolved</span>
+                <div className="finding-details">
+                  <div className="finding-type">{(v.type ?? 'resolved').replace(/_/g, ' ')}</div>
+                  <div className="finding-desc">{v.description}</div>
+                  {v.resolution_evidence && <div className="finding-desc" style={{ color: 'var(--accent-green)' }}>{v.resolution_evidence}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Remaining / Persistent Findings */}
+      {allVulns.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Total Findings ({allVulns.length})
+          </div>
+          <div className="findings-grid">
+            {allVulns.map((v, i) => (
+              <div key={i} className="finding-card">
+                <SeverityBadge severity={v.severity ?? 'medium'} />
+                <div className="finding-details">
+                  <div className="finding-type">{(v.type ?? 'issue').replace(/_/g, ' ')}</div>
+                  <div className="finding-desc">{v.description}</div>
+                  {v.line && <div className="finding-line">Line {v.line}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Summary note */}
+      {data.summary && (
+        <div style={{
+          marginTop: 12,
+          padding: '8px 12px',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-surface-2)',
+          fontSize: 12,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.5,
+        }}>
+          <strong>Audit Summary:</strong> {data.summary}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Message Log Tab ──────────────────────────────────────────────────────── */
 
 function MessagesTab({ messages }) {
@@ -445,8 +631,8 @@ function MessagesTab({ messages }) {
   }
 
   const chipClass = {
-    request:      'msg-type-chip chip-request',
-    response:     'msg-type-chip chip-response',
+    request: 'msg-type-chip chip-request',
+    response: 'msg-type-chip chip-response',
     notification: 'msg-type-chip chip-notification',
   }
 
@@ -493,10 +679,10 @@ function MessagesTab({ messages }) {
 
 function agentKeyFor(sender = '') {
   const s = (sender ?? '').toLowerCase()
-  if (s.includes('analysis'))     return 'analysis'
-  if (s.includes('optim'))        return 'optimization'
-  if (s.includes('verif'))        return 'verification'
-  if (s.includes('pipeline'))     return 'pipeline'
+  if (s.includes('analysis')) return 'analysis'
+  if (s.includes('optim')) return 'optimization'
+  if (s.includes('verif')) return 'verification'
+  if (s.includes('pipeline')) return 'pipeline'
   return 'log'
 }
 
@@ -514,10 +700,11 @@ function EmptyState({ icon, text }) {
 /* ── Main ResultsPanel ────────────────────────────────────────────────────── */
 
 const TABS = [
-  { id: 'analysis',     label: 'Analysis',     icon: FileText      },
-  { id: 'optimization', label: 'Optimized',    icon: Diff          },
-  { id: 'verification', label: 'Verification', icon: ShieldCheck   },
-  { id: 'messages',     label: 'Messages',     icon: MessageSquare },
+  { id: 'analysis', label: 'Analysis', icon: FileText },
+  { id: 'optimization', label: 'Optimized', icon: Diff },
+  { id: 'verification', label: 'Verification', icon: ShieldCheck },
+  { id: 'security', label: 'Security', icon: ShieldAlert },
+  { id: 'messages', label: 'Messages', icon: MessageSquare },
 ]
 
 export default function ResultsPanel({ results, onAcceptCode, messages = [] }) {
@@ -534,10 +721,11 @@ export default function ResultsPanel({ results, onAcceptCode, messages = [] }) {
   const agentMessages = messages.filter(m => m.type === 'agent_message')
 
   function countFor(tabId) {
-    if (tabId === 'analysis')     return results.analysis?.all_findings?.length ?? null
+    if (tabId === 'analysis') return results.analysis?.all_findings?.length ?? null
     if (tabId === 'optimization') return results.optimization?.transformations?.length ?? null
     if (tabId === 'verification') return results.verification ? 1 : null
-    if (tabId === 'messages')     return agentMessages.length > 0 ? agentMessages.length : null
+    if (tabId === 'security') return results.security?.new_vulnerabilities?.length ?? (results.security?.security_score != null ? results.security.security_score : null)
+    if (tabId === 'messages') return agentMessages.length > 0 ? agentMessages.length : null
     return null
   }
 
@@ -551,7 +739,7 @@ export default function ResultsPanel({ results, onAcceptCode, messages = [] }) {
           style={{ marginRight: 4 }}
         >
           {collapsed
-            ? <ChevronUp   size={13} strokeWidth={2} />
+            ? <ChevronUp size={13} strokeWidth={2} />
             : <ChevronDown size={13} strokeWidth={2} />
           }
         </button>
@@ -574,10 +762,11 @@ export default function ResultsPanel({ results, onAcceptCode, messages = [] }) {
 
       {!collapsed && (
         <div className="results-content">
-          {activeTab === 'analysis'     && <AnalysisTab     data={results.analysis} />}
-          {activeTab === 'optimization' && <OptimizationTab data={results.optimization} onAcceptCode={onAcceptCode} />}
+          {activeTab === 'analysis' && <AnalysisTab data={results.analysis} />}
+          {activeTab === 'optimization' && <OptimizationTab data={results.optimization} onAcceptCode={onAcceptCode} pipelineData={results.pipeline} />}
           {activeTab === 'verification' && <VerificationTab data={results.verification} />}
-          {activeTab === 'messages'     && <MessagesTab     messages={agentMessages} />}
+          {activeTab === 'security' && <SecurityTab data={results.security} pipelineData={results.pipeline} />}
+          {activeTab === 'messages' && <MessagesTab messages={agentMessages} />}
         </div>
       )}
     </>

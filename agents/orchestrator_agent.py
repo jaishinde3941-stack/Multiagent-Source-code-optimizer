@@ -33,36 +33,54 @@ class OrchestratorAgent(BaseAgent):
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Run the full optimization pipeline on a C++ file.
-
-        Args:
-            input_data: {"file_path": str} or {"code": str, "filename": str}
-
-        Returns:
-            Combined results from all pipeline stages
+        Delegates to canonical CompilerOptimizationPipeline in src/pipeline.
         """
-        # Get code from file or directly
-        file_path = input_data.get("file_path")
-        if file_path:
-            code = read_cpp_file(file_path)
-            filename = Path(file_path).name
-        else:
-            code = input_data.get("code", "")
-            filename = input_data.get("filename", "unknown")
+        import warnings
+        warnings.warn(
+            "OrchestratorAgent is legacy and deprecated. Use src.pipeline.pipeline.CompilerOptimizationPipeline.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
+        file_path = input_data.get("file_path")
+        if file_path and Path(file_path).is_file():
+            from src.pipeline.pipeline import CompilerOptimizationPipeline
+            pipeline = CompilerOptimizationPipeline()
+            res = pipeline.run(file_path)
+            return {
+                "filename": Path(file_path).name,
+                "status": res.status,
+                "stages": {
+                    "analysis": res.analysis_report,
+                    "optimization": res.optimization_report,
+                    "verification": res.verification_report,
+                    "security": res.security_report,
+                },
+                "final_source": res.final_source_code,
+                "was_rolled_back": res.was_rolled_back,
+            }
+
+        # Fallback for raw in-memory code
+        code = input_data.get("code", "")
+        filename = input_data.get("filename", "unknown.cpp")
         if not code.strip():
             return {"error": "No code provided"}
 
-        self.logger.info(f"Starting pipeline for {filename}")
-
-        # Store original code in context
-        self.context.set("original_code", code, save_version=False)
-        self.context.set("source_file", filename)
-
-        results = {"filename": filename, "stages": {}}
-
-        # Stage 1: Analysis
-        self.logger.info("Stage 1: Analysis")
-        from agents.analysis_agent import AnalysisAgent
+        from src.pipeline.pipeline import CompilerOptimizationPipeline
+        pipeline = CompilerOptimizationPipeline()
+        res = pipeline.run_string(code, label=filename)
+        return {
+            "filename": filename,
+            "status": res.status,
+            "stages": {
+                "analysis": res.analysis_report,
+                "optimization": res.optimization_report,
+                "verification": res.verification_report,
+                "security": res.security_report,
+            },
+            "final_source": res.final_source_code,
+            "was_rolled_back": res.was_rolled_back,
+        }
 
         analysis_agent = AnalysisAgent(
             "pipeline_analysis", "analysis", self.context, self._llm

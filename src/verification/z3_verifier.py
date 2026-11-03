@@ -60,7 +60,7 @@ class Z3Verifier:
         if orig_expr is None or opt_expr is None:
             return Z3Result(
                 status="UNKNOWN",
-                explanation="Could not extract simple return expression for Z3 verification.",
+                explanation="Could not extract simple return expression for Z3 verification (unsupported code structure or non-expression function).",
             )
 
         return self._check_equivalence(orig_expr, opt_expr)
@@ -122,7 +122,7 @@ class Z3Verifier:
             if result == z3.unsat:
                 return Z3Result(
                     status="PROVEN_EQUIVALENT",
-                    explanation=f"Z3 proved '{expr1}' ≡ '{expr2}' for all inputs.",
+                    explanation=f"Z3 proved '{expr1}' ≡ '{expr2}' within modeled return expression (restricted scope; does not prove full program equivalence).",
                 )
             elif result == z3.sat:
                 model = solver.model()
@@ -135,7 +135,7 @@ class Z3Verifier:
             else:
                 return Z3Result(
                     status="UNKNOWN",
-                    explanation="Z3 returned unknown (possible timeout or complexity limit).",
+                    explanation="Z3 returned UNKNOWN (solver inconclusive; not equivalent to UNSAT).",
                 )
         except Exception as exc:
             logger.warning(f"Z3 verification error: {exc}")

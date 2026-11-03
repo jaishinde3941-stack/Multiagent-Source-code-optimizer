@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 int main() {
-    printf("n");
+    int n = 42; // Example variable
+    printf("%d", n);
     return 0;
 }

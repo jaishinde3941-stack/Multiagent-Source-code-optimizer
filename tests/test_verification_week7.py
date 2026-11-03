@@ -193,7 +193,7 @@ int main() {
 }
 """
         result = self.pipeline.run_string(code, label="TC11_test.cpp")
-        self.assertIn(result.status, ("success", "partial", "rollback"))
+        self.assertIn(result.status, ("success", "partial", "rollback", "no_optimization"))
         self.assertIsNotNone(result.analysis_report)
 
     def test_pipeline_detects_uninit(self):
@@ -224,7 +224,7 @@ int main() {
         if not os.path.exists(tc_path):
             self.skipTest("TC01 not found")
         result = self.pipeline.run(tc_path)
-        self.assertIn(result.status, ("success", "partial", "rollback"))
+        self.assertIn(result.status, ("success", "partial", "rollback", "no_optimization"))
 
     def test_summary_is_string(self):
         result = self.pipeline.run_string(

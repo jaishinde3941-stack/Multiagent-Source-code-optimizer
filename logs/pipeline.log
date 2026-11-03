@@ -4728,3 +4728,186 @@
 2026-11-01 22:47:11  DEBUG     src.pipeline.pipeline                     MSG response: security_1 -> pipeline payload_keys=['status', 'overall_risk', 'security_score', 'score_change']
 2026-11-01 22:47:11  INFO      src.pipeline.pipeline                     Pipeline finished for C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp with status: ROLLBACK
 2026-11-01 22:47:11  INFO      __main__                                  run_pipeline.py finished.
+2026-11-02 14:13:17  INFO      src.logger_config                         Logging ready  [console=INFO]  [file=C:\Users\jaish\Desktop\TOC FILES\modified-main\logs\pipeline.log]
+2026-11-02 14:13:17  INFO      __main__                                  Initialising pipeline agents …
+2026-11-02 14:13:17  INFO      src.llm.llm_client                        LLM backend: Ollama / Qwen 2.5 Coder (qwen2.5-coder:7b)
+2026-11-02 14:13:21  INFO      Agent.analysis_1                          Agent analysis_1 (analysis) initialized
+2026-11-02 14:13:21  INFO      Agent.optimization_1                      Agent optimization_1 (optimization) initialized
+2026-11-02 14:13:21  INFO      Agent.verification_1                      Agent verification_1 (verification) initialized
+2026-11-02 14:13:21  INFO      src.verification.z3_verifier              z3-solver available.
+2026-11-02 14:13:21  INFO      Agent.security_1                          Agent security_1 (security) initialized
+2026-11-02 14:13:21  INFO      AgentRegistry                             Registered agent: analysis_1 (analysis)
+2026-11-02 14:13:21  INFO      AgentRegistry                             Registered agent: optimization_1 (optimization)
+2026-11-02 14:13:21  INFO      AgentRegistry                             Registered agent: verification_1 (verification)
+2026-11-02 14:13:21  INFO      AgentRegistry                             Registered agent: security_1 (security)
+2026-11-02 14:13:25  WARNING   __main__                                  Ollama not running — using stub LLM fallback
+2026-11-02 14:13:25  WARNING   __main__                                  Security audit disabled via --no-security
+2026-11-02 14:13:25  INFO      src.pipeline.pipeline                     Pipeline starting for: C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp
+2026-11-02 14:13:25  INFO      src.pipeline.pipeline                     Step 1/4: Initial Analysis on Original Code
+2026-11-02 14:13:25  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> analysis_1 payload_keys=['action', 'file_path', 'source_code', 'line_count']
+2026-11-02 14:13:25  INFO      src.agents.analysis_agent                 AnalysisAgent: analyzing 'TC01_uninit_arithmetic.cpp' (294 chars)
+2026-11-02 14:13:25  DEBUG     src.parser.code_parser                    Parsed C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp: 15 lines, 1 functions, 0 loops
+2026-11-02 14:13:26  INFO      src.agents.analysis_agent                 Analysis complete: 3 findings in C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp (Score: N/A/100)
+2026-11-02 14:13:26  DEBUG     src.pipeline.pipeline                     MSG response: analysis_1 -> pipeline payload_keys=['status', 'findings', 'security_score', 'conclusion']
+2026-11-02 14:13:26  INFO      src.pipeline.pipeline                     Steps 2 & 3: Bounded Optimization-Verification Loop (Max 3 attempts)
+2026-11-02 14:13:26  INFO      src.pipeline.pipeline                     --- Feedback Loop Iteration 1/3 ---
+2026-11-02 14:13:26  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> optimization_1 payload_keys=['action', 'iteration', 'max_iterations', 'file_path', 'n_findings', 'has_feedback']
+2026-11-02 14:13:26  INFO      src.agents.optimization_agent             OptimizationAgent: running attempt 1/3 for 'TC01_uninit_arithmetic.cpp'
+2026-11-02 14:13:26  WARNING   src.agents.optimization_agent             OptimizationAgent: Ollama is offline – skipping LLM optimization.
+2026-11-02 14:13:26  INFO      src.agents.optimization_agent             Saved optimized code to C:\Users\jaish\Desktop\TOC FILES\modified-main\src\agents\..\..\MicroBenchmarks\Generated_optimisation\OPT_TC01_uninit_arithmetic.cpp
+2026-11-02 14:13:26  INFO      src.agents.optimization_agent             Optimization attempt 1 complete: status=llm_unavailable, transforms=0
+2026-11-02 14:13:26  DEBUG     src.pipeline.pipeline                     MSG response: optimization_1 -> pipeline payload_keys=['iteration', 'status', 'transformations', 'output_file']
+2026-11-02 14:13:26  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> verification_1 payload_keys=['action', 'iteration', 'file_path', 'candidate_len']
+2026-11-02 14:13:26  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 1/4]: Differential Testing …
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Layer 1/4]: Differential Test -> PASS
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 2/4]: Z3 Equivalence …
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Layer 2/4]: Z3 -> PROVEN_EQUIVALENT
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 3/4]: Performance Benchmark …
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Layer 3/4]: Perf -> Perf benchmark skipped: Original compilation failed.
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 4/4]: LLM Reasoning …
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             VerificationAgent [Layer 4/4]: LLM verdict -> UNCERTAIN
+2026-11-02 14:13:28  INFO      src.agents.verification_agent             Verification complete: status=PASS, passes=True
+2026-11-02 14:13:28  DEBUG     src.pipeline.pipeline                     MSG response: verification_1 -> pipeline payload_keys=['iteration', 'status', 'passes_acceptance', 'diff_passed', 'z3_status', 'blocking_reasons']
+2026-11-02 14:13:28  INFO      src.pipeline.pipeline                     Loop passed acceptance criteria on attempt 1! Stopping retries.
+2026-11-02 14:13:28  DEBUG     src.pipeline.pipeline                     MSG notification: pipeline -> ui payload_keys=['event', 'attempt']
+2026-11-02 14:13:28  INFO      src.pipeline.pipeline                     Step 4/4: Security Audit on Final Candidate
+2026-11-02 14:13:28  INFO      src.pipeline.pipeline                     Security audit disabled by configuration (--no-security). Skipping Step 4.
+2026-11-02 14:13:28  INFO      src.pipeline.pipeline                     Pipeline finished for C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp with status: NO_OPTIMIZATION
+2026-11-02 14:13:28  INFO      __main__                                  run_pipeline.py finished.
+2026-11-02 14:13:41  INFO      src.logger_config                         Logging ready  [console=INFO]  [file=C:\Users\jaish\Desktop\TOC FILES\modified-main\logs\pipeline.log]
+2026-11-02 14:13:41  INFO      __main__                                  Initialising pipeline agents …
+2026-11-02 14:13:41  INFO      src.llm.llm_client                        LLM backend: Ollama / Qwen 2.5 Coder (qwen2.5-coder:7b)
+2026-11-02 14:13:45  INFO      Agent.analysis_1                          Agent analysis_1 (analysis) initialized
+2026-11-02 14:13:45  INFO      Agent.optimization_1                      Agent optimization_1 (optimization) initialized
+2026-11-02 14:13:45  INFO      Agent.verification_1                      Agent verification_1 (verification) initialized
+2026-11-02 14:13:45  INFO      src.verification.z3_verifier              z3-solver available.
+2026-11-02 14:13:45  INFO      Agent.security_1                          Agent security_1 (security) initialized
+2026-11-02 14:13:45  INFO      AgentRegistry                             Registered agent: analysis_1 (analysis)
+2026-11-02 14:13:45  INFO      AgentRegistry                             Registered agent: optimization_1 (optimization)
+2026-11-02 14:13:45  INFO      AgentRegistry                             Registered agent: verification_1 (verification)
+2026-11-02 14:13:45  INFO      AgentRegistry                             Registered agent: security_1 (security)
+2026-11-02 14:13:50  WARNING   __main__                                  Ollama not running — using stub LLM fallback
+2026-11-02 14:13:50  INFO      src.pipeline.pipeline                     Pipeline starting for: C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp
+2026-11-02 14:13:50  INFO      src.pipeline.pipeline                     Step 1/4: Initial Analysis on Original Code
+2026-11-02 14:13:50  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> analysis_1 payload_keys=['action', 'file_path', 'source_code', 'line_count']
+2026-11-02 14:13:50  INFO      src.agents.analysis_agent                 AnalysisAgent: analyzing 'TC01_uninit_arithmetic.cpp' (294 chars)
+2026-11-02 14:13:50  DEBUG     src.parser.code_parser                    Parsed C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp: 15 lines, 1 functions, 0 loops
+2026-11-02 14:13:50  INFO      src.agents.analysis_agent                 Analysis complete: 3 findings in C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp (Score: N/A/100)
+2026-11-02 14:13:50  DEBUG     src.pipeline.pipeline                     MSG response: analysis_1 -> pipeline payload_keys=['status', 'findings', 'security_score', 'conclusion']
+2026-11-02 14:13:50  INFO      src.pipeline.pipeline                     Steps 2 & 3: Bounded Optimization-Verification Loop (Max 3 attempts)
+2026-11-02 14:13:50  INFO      src.pipeline.pipeline                     --- Feedback Loop Iteration 1/3 ---
+2026-11-02 14:13:50  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> optimization_1 payload_keys=['action', 'iteration', 'max_iterations', 'file_path', 'n_findings', 'has_feedback']
+2026-11-02 14:13:50  INFO      src.agents.optimization_agent             OptimizationAgent: running attempt 1/3 for 'TC01_uninit_arithmetic.cpp'
+2026-11-02 14:13:50  WARNING   src.agents.optimization_agent             OptimizationAgent: Ollama is offline – skipping LLM optimization.
+2026-11-02 14:13:50  INFO      src.agents.optimization_agent             Saved optimized code to C:\Users\jaish\Desktop\TOC FILES\modified-main\src\agents\..\..\MicroBenchmarks\Generated_optimisation\OPT_TC01_uninit_arithmetic.cpp
+2026-11-02 14:13:50  INFO      src.agents.optimization_agent             Optimization attempt 1 complete: status=llm_unavailable, transforms=0
+2026-11-02 14:13:50  DEBUG     src.pipeline.pipeline                     MSG response: optimization_1 -> pipeline payload_keys=['iteration', 'status', 'transformations', 'output_file']
+2026-11-02 14:13:50  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> verification_1 payload_keys=['action', 'iteration', 'file_path', 'candidate_len']
+2026-11-02 14:13:50  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 1/4]: Differential Testing …
+2026-11-02 14:13:51  INFO      src.agents.verification_agent             VerificationAgent [Layer 1/4]: Differential Test -> PASS
+2026-11-02 14:13:51  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 2/4]: Z3 Equivalence …
+2026-11-02 14:13:51  INFO      src.agents.verification_agent             VerificationAgent [Layer 2/4]: Z3 -> PROVEN_EQUIVALENT
+2026-11-02 14:13:51  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 3/4]: Performance Benchmark …
+2026-11-02 14:13:52  INFO      src.agents.verification_agent             VerificationAgent [Layer 3/4]: Perf -> Perf benchmark skipped: Original compilation failed.
+2026-11-02 14:13:52  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 4/4]: LLM Reasoning …
+2026-11-02 14:13:52  INFO      src.agents.verification_agent             VerificationAgent [Layer 4/4]: LLM verdict -> UNCERTAIN
+2026-11-02 14:13:52  INFO      src.agents.verification_agent             Verification complete: status=PASS, passes=True
+2026-11-02 14:13:52  DEBUG     src.pipeline.pipeline                     MSG response: verification_1 -> pipeline payload_keys=['iteration', 'status', 'passes_acceptance', 'diff_passed', 'z3_status', 'blocking_reasons']
+2026-11-02 14:13:52  INFO      src.pipeline.pipeline                     Loop passed acceptance criteria on attempt 1! Stopping retries.
+2026-11-02 14:13:52  DEBUG     src.pipeline.pipeline                     MSG notification: pipeline -> ui payload_keys=['event', 'attempt']
+2026-11-02 14:13:52  INFO      src.pipeline.pipeline                     Step 4/4: Security Audit on Final Candidate
+2026-11-02 14:13:52  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> security_1 payload_keys=['action', 'file_path', 'candidate_len', 'has_candidate']
+2026-11-02 14:13:52  INFO      src.agents.security_agent                 SecurityAgent: auditing candidate 'TC01_uninit_arithmetic.cpp' (294 chars)
+2026-11-02 14:13:52  INFO      src.agents.security_agent                 SecurityAgent: audit complete — status=PASS, risk=high, score=N/A/100
+2026-11-02 14:13:52  DEBUG     src.pipeline.pipeline                     MSG response: security_1 -> pipeline payload_keys=['status', 'overall_risk', 'security_score', 'score_change']
+2026-11-02 14:13:52  INFO      src.pipeline.pipeline                     Pipeline finished for C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp with status: NO_OPTIMIZATION
+2026-11-02 14:13:52  INFO      __main__                                  run_pipeline.py finished.
+2026-11-02 14:29:12  INFO      src.logger_config                         Logging ready  [console=INFO]  [file=C:\Users\jaish\Desktop\TOC FILES\modified-main\logs\pipeline.log]
+2026-11-02 14:29:12  INFO      __main__                                  Initialising pipeline agents …
+2026-11-02 14:29:12  INFO      src.llm.llm_client                        LLM backend: Ollama / Qwen 2.5 Coder (qwen2.5-coder:7b)
+2026-11-02 14:29:14  INFO      Agent.analysis_1                          Agent analysis_1 (analysis) initialized
+2026-11-02 14:29:14  INFO      Agent.optimization_1                      Agent optimization_1 (optimization) initialized
+2026-11-02 14:29:14  INFO      Agent.verification_1                      Agent verification_1 (verification) initialized
+2026-11-02 14:29:14  INFO      src.verification.z3_verifier              z3-solver available.
+2026-11-02 14:29:14  INFO      Agent.security_1                          Agent security_1 (security) initialized
+2026-11-02 14:29:14  INFO      AgentRegistry                             Registered agent: analysis_1 (analysis)
+2026-11-02 14:29:14  INFO      AgentRegistry                             Registered agent: optimization_1 (optimization)
+2026-11-02 14:29:14  INFO      AgentRegistry                             Registered agent: verification_1 (verification)
+2026-11-02 14:29:14  INFO      AgentRegistry                             Registered agent: security_1 (security)
+2026-11-02 14:29:16  INFO      __main__                                  LLM online: Qwen 2.5 Coder (qwen2.5-coder:7b)
+2026-11-02 14:29:16  INFO      src.pipeline.pipeline                     Pipeline starting for: C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp
+2026-11-02 14:29:16  INFO      src.pipeline.pipeline                     Step 1/4: Initial Analysis on Original Code
+2026-11-02 14:29:16  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> analysis_1 payload_keys=['action', 'file_path', 'source_code', 'line_count']
+2026-11-02 14:29:16  INFO      src.agents.analysis_agent                 AnalysisAgent: analyzing 'TC01_uninit_arithmetic.cpp' (294 chars)
+2026-11-02 14:29:16  DEBUG     src.parser.code_parser                    Parsed C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp: 15 lines, 1 functions, 0 loops
+2026-11-02 14:29:57  INFO      src.agents.analysis_agent                 Analysis complete: 5 findings in C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp (Score: 20/100)
+2026-11-02 14:29:57  DEBUG     src.pipeline.pipeline                     MSG response: analysis_1 -> pipeline payload_keys=['status', 'findings', 'security_score', 'conclusion']
+2026-11-02 14:29:57  INFO      src.pipeline.pipeline                     Steps 2 & 3: Bounded Optimization-Verification Loop (Max 3 attempts)
+2026-11-02 14:29:57  INFO      src.pipeline.pipeline                     --- Feedback Loop Iteration 1/3 ---
+2026-11-02 14:29:57  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> optimization_1 payload_keys=['action', 'iteration', 'max_iterations', 'file_path', 'n_findings', 'has_feedback']
+2026-11-02 14:29:57  INFO      src.agents.optimization_agent             OptimizationAgent: running attempt 1/3 for 'TC01_uninit_arithmetic.cpp'
+2026-11-02 14:30:21  INFO      src.agents.optimization_agent             Saved optimized code to C:\Users\jaish\Desktop\TOC FILES\modified-main\src\agents\..\..\MicroBenchmarks\Generated_optimisation\OPT_TC01_uninit_arithmetic.cpp
+2026-11-02 14:30:21  INFO      src.agents.optimization_agent             Optimization attempt 1 complete: status=optimization_generated, transforms=2
+2026-11-02 14:30:21  DEBUG     src.pipeline.pipeline                     MSG response: optimization_1 -> pipeline payload_keys=['iteration', 'status', 'transformations', 'output_file']
+2026-11-02 14:30:21  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> verification_1 payload_keys=['action', 'iteration', 'file_path', 'candidate_len']
+2026-11-02 14:30:21  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 1/4]: Differential Testing …
+2026-11-02 14:30:26  INFO      src.agents.verification_agent             VerificationAgent [Layer 1/4]: Differential Test -> FAIL (Output mismatch (original='Result: 6422366', candidate='Result: 10').)
+2026-11-02 14:30:26  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 2/4]: Z3 Equivalence …
+2026-11-02 14:30:26  INFO      src.agents.verification_agent             VerificationAgent [Layer 2/4]: Z3 -> PROVEN_EQUIVALENT
+2026-11-02 14:30:26  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 3/4]: Performance Benchmark …
+2026-11-02 14:30:26  INFO      src.agents.verification_agent             VerificationAgent [Layer 3/4]: Perf -> Perf benchmark skipped: Original compilation failed.
+2026-11-02 14:30:26  INFO      src.agents.verification_agent             VerificationAgent [Attempt 1/3 - Layer 4/4]: LLM Reasoning …
+2026-11-02 14:30:43  INFO      src.agents.verification_agent             VerificationAgent [Layer 4/4]: LLM verdict -> NOT_EQUIVALENT
+2026-11-02 14:30:43  INFO      src.agents.verification_agent             Differential output difference tolerated because original program exhibited undefined behavior (uninitialized variable/UB) and Z3 proved formal equivalence.
+2026-11-02 14:30:43  INFO      src.agents.verification_agent             Verification complete: status=FAIL, passes=False
+2026-11-02 14:30:43  DEBUG     src.pipeline.pipeline                     MSG response: verification_1 -> pipeline payload_keys=['iteration', 'status', 'passes_acceptance', 'diff_passed', 'z3_status', 'blocking_reasons']
+2026-11-02 14:30:43  INFO      src.pipeline.pipeline                     Attempt 1 had blocking issues. Triggering retry 2 with feedback.
+2026-11-02 14:30:43  DEBUG     src.pipeline.pipeline                     MSG notification: pipeline -> ui payload_keys=['event', 'next_attempt', 'reasons']
+2026-11-02 14:30:43  INFO      src.pipeline.pipeline                     --- Feedback Loop Iteration 2/3 ---
+2026-11-02 14:30:43  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> optimization_1 payload_keys=['action', 'iteration', 'max_iterations', 'file_path', 'n_findings', 'has_feedback']
+2026-11-02 14:30:43  INFO      src.agents.optimization_agent             OptimizationAgent: running attempt 2/3 for 'TC01_uninit_arithmetic.cpp'
+2026-11-02 14:31:07  INFO      src.agents.optimization_agent             Saved optimized code to C:\Users\jaish\Desktop\TOC FILES\modified-main\src\agents\..\..\MicroBenchmarks\Generated_optimisation\OPT_TC01_uninit_arithmetic.cpp
+2026-11-02 14:31:07  INFO      src.agents.optimization_agent             Optimization attempt 2 complete: status=optimization_generated, transforms=2
+2026-11-02 14:31:07  DEBUG     src.pipeline.pipeline                     MSG response: optimization_1 -> pipeline payload_keys=['iteration', 'status', 'transformations', 'output_file']
+2026-11-02 14:31:07  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> verification_1 payload_keys=['action', 'iteration', 'file_path', 'candidate_len']
+2026-11-02 14:31:07  INFO      src.agents.verification_agent             VerificationAgent [Attempt 2/3 - Layer 1/4]: Differential Testing …
+2026-11-02 14:31:08  INFO      src.agents.verification_agent             VerificationAgent [Layer 1/4]: Differential Test -> FAIL (Output mismatch (original='Result: 6422366', candidate='Result: 10').)
+2026-11-02 14:31:08  INFO      src.agents.verification_agent             VerificationAgent [Attempt 2/3 - Layer 2/4]: Z3 Equivalence …
+2026-11-02 14:31:08  INFO      src.agents.verification_agent             VerificationAgent [Layer 2/4]: Z3 -> PROVEN_EQUIVALENT
+2026-11-02 14:31:08  INFO      src.agents.verification_agent             VerificationAgent [Attempt 2/3 - Layer 3/4]: Performance Benchmark …
+2026-11-02 14:31:09  INFO      src.agents.verification_agent             VerificationAgent [Layer 3/4]: Perf -> Perf benchmark skipped: Original compilation failed.
+2026-11-02 14:31:09  INFO      src.agents.verification_agent             VerificationAgent [Attempt 2/3 - Layer 4/4]: LLM Reasoning …
+2026-11-02 14:31:25  INFO      src.agents.verification_agent             VerificationAgent [Layer 4/4]: LLM verdict -> NOT_EQUIVALENT
+2026-11-02 14:31:25  INFO      src.agents.verification_agent             Differential output difference tolerated because original program exhibited undefined behavior (uninitialized variable/UB) and Z3 proved formal equivalence.
+2026-11-02 14:31:25  INFO      src.agents.verification_agent             Verification complete: status=FAIL, passes=False
+2026-11-02 14:31:25  DEBUG     src.pipeline.pipeline                     MSG response: verification_1 -> pipeline payload_keys=['iteration', 'status', 'passes_acceptance', 'diff_passed', 'z3_status', 'blocking_reasons']
+2026-11-02 14:31:25  INFO      src.pipeline.pipeline                     Attempt 2 had blocking issues. Triggering retry 3 with feedback.
+2026-11-02 14:31:25  DEBUG     src.pipeline.pipeline                     MSG notification: pipeline -> ui payload_keys=['event', 'next_attempt', 'reasons']
+2026-11-02 14:31:25  INFO      src.pipeline.pipeline                     --- Feedback Loop Iteration 3/3 ---
+2026-11-02 14:31:25  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> optimization_1 payload_keys=['action', 'iteration', 'max_iterations', 'file_path', 'n_findings', 'has_feedback']
+2026-11-02 14:31:25  INFO      src.agents.optimization_agent             OptimizationAgent: running attempt 3/3 for 'TC01_uninit_arithmetic.cpp'
+2026-11-02 14:31:49  INFO      src.agents.optimization_agent             Saved optimized code to C:\Users\jaish\Desktop\TOC FILES\modified-main\src\agents\..\..\MicroBenchmarks\Generated_optimisation\OPT_TC01_uninit_arithmetic.cpp
+2026-11-02 14:31:49  INFO      src.agents.optimization_agent             Optimization attempt 3 complete: status=optimization_generated, transforms=2
+2026-11-02 14:31:49  DEBUG     src.pipeline.pipeline                     MSG response: optimization_1 -> pipeline payload_keys=['iteration', 'status', 'transformations', 'output_file']
+2026-11-02 14:31:49  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> verification_1 payload_keys=['action', 'iteration', 'file_path', 'candidate_len']
+2026-11-02 14:31:49  INFO      src.agents.verification_agent             VerificationAgent [Attempt 3/3 - Layer 1/4]: Differential Testing …
+2026-11-02 14:31:51  INFO      src.agents.verification_agent             VerificationAgent [Layer 1/4]: Differential Test -> FAIL (Output mismatch (original='Result: 6422366', candidate='Result: 10').)
+2026-11-02 14:31:51  INFO      src.agents.verification_agent             VerificationAgent [Attempt 3/3 - Layer 2/4]: Z3 Equivalence …
+2026-11-02 14:31:51  INFO      src.agents.verification_agent             VerificationAgent [Layer 2/4]: Z3 -> PROVEN_EQUIVALENT
+2026-11-02 14:31:51  INFO      src.agents.verification_agent             VerificationAgent [Attempt 3/3 - Layer 3/4]: Performance Benchmark …
+2026-11-02 14:31:51  INFO      src.agents.verification_agent             VerificationAgent [Layer 3/4]: Perf -> Perf benchmark skipped: Original compilation failed.
+2026-11-02 14:31:51  INFO      src.agents.verification_agent             VerificationAgent [Attempt 3/3 - Layer 4/4]: LLM Reasoning …
+2026-11-02 14:32:08  INFO      src.agents.verification_agent             VerificationAgent [Layer 4/4]: LLM verdict -> NOT_EQUIVALENT
+2026-11-02 14:32:08  INFO      src.agents.verification_agent             Differential output difference tolerated because original program exhibited undefined behavior (uninitialized variable/UB) and Z3 proved formal equivalence.
+2026-11-02 14:32:08  INFO      src.agents.verification_agent             Verification complete: status=FAIL, passes=False
+2026-11-02 14:32:08  DEBUG     src.pipeline.pipeline                     MSG response: verification_1 -> pipeline payload_keys=['iteration', 'status', 'passes_acceptance', 'diff_passed', 'z3_status', 'blocking_reasons']
+2026-11-02 14:32:08  WARNING   src.pipeline.pipeline                     Max 3 optimization-verification attempts exhausted without full acceptance.
+2026-11-02 14:32:08  DEBUG     src.pipeline.pipeline                     MSG notification: pipeline -> ui payload_keys=['event', 'total_attempts']
+2026-11-02 14:32:08  INFO      src.pipeline.pipeline                     Step 4/4: Security Audit on Final Candidate
+2026-11-02 14:32:08  DEBUG     src.pipeline.pipeline                     MSG request: pipeline -> security_1 payload_keys=['action', 'file_path', 'candidate_len', 'has_candidate']
+2026-11-02 14:32:08  INFO      src.agents.security_agent                 SecurityAgent: auditing candidate 'TC01_uninit_arithmetic.cpp' (203 chars)
+2026-11-02 14:32:52  INFO      src.agents.security_agent                 SecurityAgent: audit complete — status=PASS, risk=critical, score=85/100
+2026-11-02 14:32:52  DEBUG     src.pipeline.pipeline                     MSG response: security_1 -> pipeline payload_keys=['status', 'overall_risk', 'security_score', 'score_change']
+2026-11-02 14:32:52  INFO      src.pipeline.pipeline                     Replaced candidate in C:\Users\jaish\Desktop\TOC FILES\modified-main\src\agents\..\..\MicroBenchmarks\Generated_optimisation\OPT_TC01_uninit_arithmetic.cpp with restored original code due to rollback.
+2026-11-02 14:32:52  INFO      src.pipeline.pipeline                     Pipeline finished for C:\Users\jaish\Desktop\TOC FILES\modified-main\MicroBenchmarks\Testcases\TC01_uninit_arithmetic.cpp with status: ROLLBACK
+2026-11-02 14:32:52  INFO      __main__                                  run_pipeline.py finished.

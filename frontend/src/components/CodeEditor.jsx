@@ -6,9 +6,6 @@ import { useState } from 'react'
 const LANGUAGES = [
   { value: 'cpp',    label: 'C++',    monaco: 'cpp'        },
   { value: 'c',      label: 'C',      monaco: 'c'          },
-  { value: 'python', label: 'Python', monaco: 'python'     },
-  { value: 'java',   label: 'Java',   monaco: 'java'       },
-  { value: 'go',     label: 'Go',     monaco: 'go'         },
 ]
 
 const MONACO_LIGHT_THEME = {

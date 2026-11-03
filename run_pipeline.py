@@ -148,7 +148,10 @@ Examples:
 
     logger.info("Initialising pipeline agents …")
     llm_client = make_llm_client(args.llm)
-    pipeline = CompilerOptimizationPipeline(llm_client=llm_client)
+    pipeline = CompilerOptimizationPipeline(
+        llm_client=llm_client,
+        enable_security=not args.no_security,
+    )
 
     if args.no_llm:
         for agent in (pipeline.analysis_agent,
@@ -192,8 +195,7 @@ Examples:
         msg_logger.attach()                 # also hooks registry for any future use
 
     if args.no_security:
-        # Monkey-patch pipeline to skip security step
-        pipeline.security_agent = None
+        pipeline.enable_security = False
         logger.warning("Security audit disabled via --no-security")
         print(_c("  [Security] Disabled via --no-security flag", _YELLOW))
 
@@ -215,10 +217,13 @@ Examples:
 
     # ── Result ─────────────────────────────────────────────────────────────────
     status_colour = {
-        "success":  _GREEN,
-        "partial":  _YELLOW,
-        "rollback": _RED,
-        "failed":   _RED,
+        "success":         _GREEN,
+        "partial":         _YELLOW,
+        "rollback":        _RED,
+        "failed":          _RED,
+        "error":           _RED,
+        "incomplete":      _YELLOW,
+        "no_optimization": _YELLOW,
     }.get(result.status, "")
 
     print()

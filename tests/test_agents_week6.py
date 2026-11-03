@@ -197,6 +197,18 @@ class TestOptimizationAgent(unittest.TestCase):
         self.assertIn("off_by_one_fix", caps)
 
     def test_fixes_off_by_one(self):
+        import json
+        self.agent._is_llm_ready = lambda: True
+        self.agent._is_stub = lambda text: False
+        llm_json = json.dumps({
+            "optimized_code": OFF_BY_ONE_CODE.replace("i <= 5", "i < 5"),
+            "transformations": [{"type": "off_by_one_fix", "description": "Fixed loop bound"}],
+            "conclusion": "Fixed bound",
+        })
+        self.agent._call_llm = lambda prompt, system_prompt="": (
+            llm_json,
+            {"is_genuine": True}
+        )
         analysis = {
             "all_findings": [{
                 "type": "off_by_one_error",
@@ -214,6 +226,18 @@ class TestOptimizationAgent(unittest.TestCase):
         self.assertNotIn("i <= 5", opt_code)
 
     def test_fixes_uninit_variable(self):
+        import json
+        self.agent._is_llm_ready = lambda: True
+        self.agent._is_stub = lambda text: False
+        llm_json = json.dumps({
+            "optimized_code": UNINIT_CODE.replace("int x;", "int x = 0;"),
+            "transformations": [{"type": "uninitialized_var_fix", "description": "Initialized x to 0"}],
+            "conclusion": "Initialized variable",
+        })
+        self.agent._call_llm = lambda prompt, system_prompt="": (
+            llm_json,
+            {"is_genuine": True}
+        )
         analysis = {
             "all_findings": [{
                 "type": "uninitialized_variable",
@@ -230,6 +254,18 @@ class TestOptimizationAgent(unittest.TestCase):
         self.assertIn("x = 0", opt_code)
 
     def test_diff_generated(self):
+        import json
+        self.agent._is_llm_ready = lambda: True
+        self.agent._is_stub = lambda text: False
+        llm_json = json.dumps({
+            "optimized_code": OFF_BY_ONE_CODE.replace("i <= 5", "i < 5"),
+            "transformations": [{"type": "off_by_one_fix", "description": "Fixed loop bound"}],
+            "conclusion": "Fixed bound",
+        })
+        self.agent._call_llm = lambda prompt, system_prompt="": (
+            llm_json,
+            {"is_genuine": True}
+        )
         result = self.agent.process({
             "source_code": OFF_BY_ONE_CODE,
             "file_path": "test.cpp",
